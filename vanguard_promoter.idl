@@ -1,0 +1,3 @@
+constructor {
+  Init : (operator: actor_id);
+};
