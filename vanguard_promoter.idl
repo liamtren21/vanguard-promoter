@@ -1,3 +1,3 @@
 constructor {
-  init : (operator: actor_id);
+  new : (operator: actor_id);
 };

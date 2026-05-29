@@ -8,7 +8,7 @@ pub struct PromoterProgram;
 
 #[sails_rs::program]
 impl PromoterProgram {
-    pub fn init(operator: ActorId) -> Self {
+    pub fn new(operator: ActorId) -> Self {
         PromoterService::init(operator);
         Self
     }
