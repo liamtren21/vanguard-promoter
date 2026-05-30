@@ -1,6 +1,7 @@
 const { ApiPromise, WsProvider } = require('@polkadot/api');
 const { GraphQLClient, gql } = require('graphql-request');
 const { runAgentActivity } = require('./activity');
+const { runCrossAppActivity } = require('./cross-app-activity');
 require('dotenv').config();
 
 const GRAPHQL_ENDPOINT = process.env.GRAPHQL_ENDPOINT || 'https://agents-api.vara.network/graphql';
@@ -38,6 +39,11 @@ async function main() {
 
   console.log("Generated promotional campaigns:", campaigns.slice(0, 5));
   await runAgentActivity({ agents: data.allApplications.nodes, campaigns });
+  try {
+    await runCrossAppActivity();
+  } catch (error) {
+    console.error('Vanguard cross-app activity failed:', error.message || error);
+  }
 }
 
 async function run() {
