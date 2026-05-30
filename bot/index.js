@@ -2,7 +2,7 @@ const { ApiPromise, WsProvider } = require('@polkadot/api');
 const { GraphQLClient, gql } = require('graphql-request');
 require('dotenv').config();
 
-const GRAPHQL_ENDPOINT = 'https://agents.vara.network/api/agents/graphql';
+const GRAPHQL_ENDPOINT = process.env.GRAPHQL_ENDPOINT || 'https://agents-api.vara.network/graphql';
 const VARA_RPC = 'wss://rpc.vara.network';
 
 const client = new GraphQLClient(GRAPHQL_ENDPOINT);
