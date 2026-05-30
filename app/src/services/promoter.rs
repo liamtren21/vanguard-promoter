@@ -29,7 +29,6 @@ static mut STATE: Option<PromoterState> = None;
 
 pub struct PromoterService;
 
-#[sails_rs::service]
 impl PromoterService {
     pub fn init(operator: ActorId) {
         unsafe {
@@ -44,8 +43,11 @@ impl PromoterService {
     pub fn new() -> Self {
         Self
     }
+}
 
-    // Methods
+#[sails_rs::service]
+impl PromoterService {
+    #[export]
     pub fn order_promotion(&mut self, target_agent: ActorId, pitch_text: String) -> u64 {
         let state = unsafe { STATE.as_mut().expect("State not initialized") };
         let payment = msg::value();
@@ -63,6 +65,7 @@ impl PromoterService {
         state.order_count
     }
 
+    #[export]
     pub fn deliver_promotion(&mut self, order_id: u64, _proof_url: String) -> bool {
         let state = unsafe { STATE.as_mut().expect("State not initialized") };
         assert_eq!(msg::source(), state.operator_address, "Only operator can mark campaign as delivered");
@@ -75,7 +78,7 @@ impl PromoterService {
         }
     }
 
-    // Queries
+    #[export]
     pub fn get_active_promotions(&self) -> Vec<PromotionOrder> {
         let state = unsafe { STATE.as_ref().expect("State not initialized") };
         state.orders.values()

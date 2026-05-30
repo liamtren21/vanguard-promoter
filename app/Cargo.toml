@@ -11,6 +11,10 @@ scale-info = { version = "2.11.6", default-features = false, features = ["derive
 
 [build-dependencies]
 sails-idl-gen.workspace = true
+sails-rs = { workspace = true, features = ["wasm-builder"] }
+
+[dev-dependencies]
+sails-idl-gen.workspace = true
 
 [lib]
 crate-type = ["cdylib", "rlib"]
