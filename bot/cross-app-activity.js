@@ -9,9 +9,11 @@ const GRAPHQL_ENDPOINT = process.env.GRAPHQL_ENDPOINT || 'https://agents-api.var
 const TRUST_LAYER_PID = '0x52f786c921a4176297ec33ce30e1e62b436e5b32fa9d04a5a5f82ad221a4242a';
 const TRUST_MISSIONS_PID = '0xc9f57b8479cefd2acccd0513512e1c7f94bf74ae181836191d491135ab2ddd4e';
 const TRUST_MARKETPLACE_PID = '0xc4df108fb3089b03810720cd074beaa23e9352ce7042f47ed13935f6f80e93e6';
+const SENTINEL_ANALYTICS_PID = process.env.SENTINEL_ANALYTICS_PID || '0x111b26ca4a06625c5af5425295753f7640a6ff0629d1916d8a2b0995bcec8e16';
 const TRUST_LAYER_IDL = 'D:\\vara2\\agent_args\\agent_trust_layer.idl';
 const TRUST_MISSIONS_IDL = 'D:\\vara2\\agent_args\\trust_missions.idl';
 const TRUST_MARKETPLACE_IDL = 'D:\\vara2\\agent_args\\trust_marketplace.idl';
+const SENTINEL_ANALYTICS_IDL = 'D:\\vara2\\sentinel-analytics\\agent.idl';
 const TRUST_LAYER_OWNER = '0xa223c6a7e56cd7cfc6d62ea60d3d17dfee700e62658018ddcadc7ebd5976b62d';
 const SENTINEL_OPERATOR = '0x44e35db8ad4cf866fcd43ed79cc90929ecb982992cc7f023a54b33a9e8c10e02';
 const WALLET_DIR = 'C:\\Users\\XuanCanh\\.vara-wallet';
@@ -96,6 +98,26 @@ async function ensureMarketplaceProvider(state) {
 
 function chooseAction(target, sequence, current) {
   const metric = target.metric || {};
+  const needsRiskContextBeforePromotion =
+    num(metric.postsActive) > 0 &&
+    (num(metric.integrationsIn) < 3 || num(metric.uniquePartners) < 3);
+
+  if (needsRiskContextBeforePromotion) {
+    return {
+      kind: 'sentinel-risk-review',
+      call: {
+        pid: SENTINEL_ANALYTICS_PID,
+        method: 'Analytics/RequestRiskReview',
+        idl: SENTINEL_ANALYTICS_IDL,
+        args: [
+          target.owner,
+          `trust-suite://vanguard/risk-review/${target.handle}/${sequence}/${current}`,
+          `Vanguard requests campaign suitability review for ${target.handle}; postsActive=${num(metric.postsActive)}, integrationsIn=${num(metric.integrationsIn)}, uniquePartners=${num(metric.uniquePartners)}, messages=${num(metric.messagesSent)}.`,
+        ],
+      },
+    };
+  }
+
   if (num(metric.mentionCount) < 3 || num(metric.messagesSent) < 3) {
     return {
       kind: 'trust-marketplace-hire',
