@@ -17,6 +17,8 @@ const SENTINEL_ANALYTICS_IDL = 'D:\\vara2\\sentinel-analytics\\agent.idl';
 const TRUST_LAYER_OWNER = '0xa223c6a7e56cd7cfc6d62ea60d3d17dfee700e62658018ddcadc7ebd5976b62d';
 const SENTINEL_OPERATOR = '0x44e35db8ad4cf866fcd43ed79cc90929ecb982992cc7f023a54b33a9e8c10e02';
 const WALLET_DIR = 'C:\\Users\\XuanCanh\\.vara-wallet';
+const CROSS_APP_REWARD_RAW = process.env.CROSS_APP_REWARD_RAW || '50000000000';
+const CROSS_APP_REWARD_VALUE = process.env.CROSS_APP_REWARD_VALUE || '0.05';
 
 const CONFIG = {
   account: 'vanguard-promoter-wallet',
@@ -44,6 +46,17 @@ async function graphql(query) {
 }
 
 function num(value) { return Number(value || 0); }
+
+async function deadlineBlock() {
+  if (process.env.CROSS_APP_DEADLINE_BLOCK) return Number(process.env.CROSS_APP_DEADLINE_BLOCK);
+  const { stdout } = await execFileAsync('cmd.exe', ['/c', 'vara-wallet.cmd', '--network', 'mainnet', 'query', 'system', 'number'], {
+    env: { ...process.env, VARA_WALLET_DIR: WALLET_DIR },
+    windowsHide: true,
+    maxBuffer: 1024 * 1024,
+  });
+  const currentBlock = Number(JSON.parse(stdout).result || 0);
+  return currentBlock + Number(process.env.CROSS_APP_DEADLINE_BLOCKS || 43200);
+}
 
 async function loadLiveContext() {
   const data = await graphql(`
@@ -96,7 +109,7 @@ async function ensureMarketplaceProvider(state) {
   console.log('Vanguard registered on Trust Marketplace:', result);
 }
 
-function chooseAction(target, sequence, current) {
+function chooseAction(target, sequence, current, deadline) {
   const metric = target.metric || {};
   const needsRiskContextBeforePromotion =
     num(metric.postsActive) > 0 &&
@@ -121,18 +134,18 @@ function chooseAction(target, sequence, current) {
   if (num(metric.mentionCount) < 3 || num(metric.messagesSent) < 3) {
     return {
       kind: 'trust-marketplace-hire',
-      call: { pid: TRUST_MARKETPLACE_PID, method: 'TrustMarketplace/CreateHireIntent', idl: TRUST_MARKETPLACE_IDL, args: [TRUST_LAYER_OWNER, `trust-suite://vanguard/live-promotion/${target.handle}/${sequence}/${current}`, '50000000000', Number(process.env.CROSS_APP_DEADLINE_BLOCK || 33450000)] },
+      call: { pid: TRUST_MARKETPLACE_PID, method: 'TrustMarketplace/CreateHireIntent', idl: TRUST_MARKETPLACE_IDL, value: CROSS_APP_REWARD_VALUE, args: [TRUST_LAYER_OWNER, `trust-suite://vanguard/live-promotion/${target.handle}/${sequence}/${current}`, CROSS_APP_REWARD_RAW, deadline] },
     };
   }
   if (num(metric.integrationsIn) < 2) {
     return {
       kind: 'trust-mission',
-      call: { pid: TRUST_MISSIONS_PID, method: 'TrustMissions/CreateMission', idl: TRUST_MISSIONS_IDL, args: [`Promotion mission for ${target.handle}`, `trust-suite://vanguard/live-mission/${target.handle}/${sequence}/${current}`, '50000000000', Number(process.env.CROSS_APP_DEADLINE_BLOCK || 33450000), ['promotion', 'visibility', target.track || 'social']] },
+      call: { pid: TRUST_MISSIONS_PID, method: 'TrustMissions/CreateMission', idl: TRUST_MISSIONS_IDL, value: CROSS_APP_REWARD_VALUE, args: [`Promotion mission for ${target.handle}`, `trust-suite://vanguard/live-mission/${target.handle}/${sequence}/${current}`, CROSS_APP_REWARD_RAW, deadline, ['promotion', 'visibility', target.track || 'social']] },
     };
   }
   return {
     kind: 'trust-layer-escrow',
-    call: { pid: TRUST_LAYER_PID, method: 'AgentTrustLayer/CreateEscrow', idl: TRUST_LAYER_IDL, value: process.env.CROSS_APP_ESCROW_VALUE || '0.05', args: [TRUST_LAYER_OWNER, SENTINEL_OPERATOR, `mainnet:${CONFIG.role}:live:${target.handle}:promotion-escrow:${sequence}:${current}`, Number(process.env.CROSS_APP_DEADLINE_BLOCK || 33450000)] },
+    call: { pid: TRUST_LAYER_PID, method: 'AgentTrustLayer/CreateEscrow', idl: TRUST_LAYER_IDL, value: process.env.CROSS_APP_ESCROW_VALUE || '0.05', args: [TRUST_LAYER_OWNER, SENTINEL_OPERATOR, `mainnet:${CONFIG.role}:live:${target.handle}:promotion-escrow:${sequence}:${current}`, deadline] },
   };
 }
 
@@ -148,14 +161,15 @@ async function runCrossAppActivity() {
   const target = chooseTarget(apps, state, current);
   if (!target) return;
   const sequence = Number(state.sequence || 0) + 1;
-  const decision = chooseAction(target, sequence, current);
+  const deadline = await deadlineBlock();
+  const decision = chooseAction(target, sequence, current, deadline);
   let finalDecision = decision;
   let result;
   try {
     result = await callProgram(decision.call);
   } catch (error) {
     if (decision.kind !== 'trust-marketplace-hire') {
-      finalDecision = { kind: 'trust-marketplace-hire', call: { pid: TRUST_MARKETPLACE_PID, method: 'TrustMarketplace/CreateHireIntent', idl: TRUST_MARKETPLACE_IDL, args: [TRUST_LAYER_OWNER, `trust-suite://vanguard/fallback-hire/${target.handle}/${sequence}/${current}`, '50000000000', Number(process.env.CROSS_APP_DEADLINE_BLOCK || 33450000)] } };
+      finalDecision = { kind: 'trust-marketplace-hire', call: { pid: TRUST_MARKETPLACE_PID, method: 'TrustMarketplace/CreateHireIntent', idl: TRUST_MARKETPLACE_IDL, value: CROSS_APP_REWARD_VALUE, args: [TRUST_LAYER_OWNER, `trust-suite://vanguard/fallback-hire/${target.handle}/${sequence}/${current}`, CROSS_APP_REWARD_RAW, deadline] } };
       result = await callProgram(finalDecision.call);
       state.lastCrossAppFallbackFrom = decision.kind;
     } else {
